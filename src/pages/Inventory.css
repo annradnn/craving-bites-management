@@ -1,0 +1,213 @@
+
+.inventory-container {
+  margin-left: 220px;
+  padding: 30px;
+  background-color: #f9fafb;
+  min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.inventory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 12px;
+}
+
+.inventory-header h1 {
+  font-size: 30px;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+.inventory-search {
+  display: flex;
+  gap: 12px;
+}
+
+.inventory-search input,
+.inventory-search select {
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+}
+
+.inventory-section {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  overflow-x: auto; /* added for responsiveness */
+}
+
+.inventory-section h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff6b3d;
+  margin-bottom: 15px;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+  table-layout: auto;
+  min-width: 600px; /* ensures table doesn't collapse too much */
+}
+
+.inventory-table th,
+.inventory-table td {
+  border: 2px solid #000;
+  padding: 12px;
+  text-align: left;
+  font-size: 14px;
+  color: #374151;
+  white-space: nowrap; /* prevents text from wrapping */
+}
+
+.inventory-table th {
+  background-color: #fff5f2;
+  font-weight: 700;
+  color: #ff6b3d;
+  text-align: center;
+}
+
+.inventory-table td {
+  background-color: #ffffff;
+}
+
+.inventory-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.inventory-table tr:hover td {
+  background-color: #ffece6;
+}
+
+.btn {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border: none;
+}
+
+/* Primary buttons */
+.btn-primary {
+  background-color: #ff6b3d;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background-color: #ff8c66;
+}
+
+/* Secondary buttons */
+.btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  font-weight: 500;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e7eb;
+}
+
+/* Quick navigation and category buttons */
+.quick-nav-container button,
+.category-links button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  background-color: #f3f4f6;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  margin-right: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.quick-nav-container button:hover,
+.category-links button:hover {
+  background-color: #e5e7eb;
+}
+
+.quick-nav-container button.active,
+.category-links button.active {
+  background-color: #ff6b3d;
+  color: #fff;
+}
+
+.see-more {
+  text-align: right;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .inventory-table th,
+  .inventory-table td {
+    font-size: 12px;
+    padding: 8px;
+  }
+}
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* Modal content */
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Clickable product name */
+.clickable {
+  cursor: pointer;
+  color: #007bff;
+}
+
+/* Detail table in modal */
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.detail-table td {
+  padding: 6px 10px;
+  vertical-align: top;
+  border-bottom: 1px solid #ddd;
+}
+
+.detail-table td:first-child {
+  font-weight: bold;
+  width: 40%;
+}
+
+/* Hover effect for detail table */
+.detail-table tr:hover {
+  background-color: #f9f9f9;
+}

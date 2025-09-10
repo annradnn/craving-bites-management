@@ -1,0 +1,152 @@
+.settings-wrapper {
+  display: flex;
+  min-height: 100vh;
+  padding: 20px;
+  background-color: #f9f9f9;
+}
+
+.settings-container {
+  margin-left: 18rem;
+  flex-grow: 1;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 30px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.settings-section {
+  margin-bottom: 40px;
+}
+
+.settings-section h2 {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  color: #333;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+}
+
+.settings-section .btn {
+  margin-bottom: 15px;
+}
+
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+.settings-table th,
+.settings-table td {
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.settings-table th {
+  background-color: #f4f4f4;
+  font-weight: 600;
+  color: #555;
+}
+
+.settings-table td {
+  background-color: #fff;
+  color: #444;
+}
+
+.settings-table tr:hover td {
+  background-color: #f1f7ff;
+}
+
+.btn {
+  display: inline-block;
+  font-size: 1rem;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.3s ease;
+  text-align: center;
+  text-decoration: none;
+  background-color: #fa8072;
+  color: #fff;
+}
+
+.btn.primary-btn {
+  background-color: #fa8072; /* standard salmon */
+  color: #fff;
+}
+
+.btn.primary-btn:hover {
+  background-color: #e67373;
+}
+
+.btn:hover {
+  background-color: #e67373;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 32px 28px;
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  max-width: 480px;
+  width: 100%;
+  position: relative;
+}
+
+.modal-content h2 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+.modal-content label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.modal-content input,
+.modal-content select {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.modal-actions {
+  text-align: right;
+}
+.modal-actions button,
+.modal-actions .btn {
+  margin-left: 12px;
+  background-color: #fa8072;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.modal-actions button:hover,
+.modal-actions .btn:hover {
+  background-color: #e67373;
+}
