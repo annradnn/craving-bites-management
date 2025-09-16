@@ -8,6 +8,7 @@ import Logo from "../assets/LOGO.png";
 
 export default function Sidebar() {
   const [userName, setUserName] = useState<string>("");
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,16 +37,21 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="sidebar-container">
-      <div className="sidebar-header">
-        <img src={Logo} alt="Logo" className="sidebar-logo" />
-        <p className="sidebar-welcome">Welcome, {userName} 🍦</p>
-      </div>
-      <Link to="/Inventory" className="sidebar-button">Inventory</Link>
-      <Link to="/Product" className="sidebar-button">Products</Link>
-      <Link to="/Warehouse" className="sidebar-button">Warehouses</Link>
-      <Link to="/Settings" className="sidebar-button">Settings</Link>
-      <button className="sidebar-button" onClick={handleLogout}>Sign Out</button>
+    <div className="sidebar-wrapper">
+      <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
+        ☰
+      </button>
+      {isOpen && (
+        <div className="sidebar-container">
+          <img src={Logo} alt="Logo" className="sidebar-logo" />
+          <p className="sidebar-welcome">Welcome, {userName} 🍦</p>
+          <Link to="/Inventory" className="sidebar-button">Inventory</Link>
+          <Link to="/Product" className="sidebar-button">Products</Link>
+          <Link to="/Warehouse" className="sidebar-button">Warehouses</Link>
+          <Link to="/Settings" className="sidebar-button">Settings</Link>
+          <button className="sidebar-button" onClick={handleLogout}>Sign Out</button>
+        </div>
+      )}
     </div>
   );
 }

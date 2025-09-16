@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   collection,
   onSnapshot,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import Sidebar from '../components/Sidebar';
@@ -148,7 +148,7 @@ const Product: React.FC = () => {
   // Product Save Handlers
   const saveNewProduct = async () => {
     if (!productForm.name) return;
-    await addDoc(collection(db, 'products'), {
+    await setDoc(doc(db, 'products', productForm.name), {
       name: productForm.name,
       category: productForm.category,
       unit: productForm.unit,
@@ -170,7 +170,7 @@ const Product: React.FC = () => {
   // Category Save Handlers
   const saveNewCategory = async () => {
     if (!categoryForm.name) return;
-    await addDoc(collection(db, 'categories'), {
+    await setDoc(doc(db, 'categories', categoryForm.name), {
       name: categoryForm.name,
       description: categoryForm.description,
     });
@@ -190,7 +190,7 @@ const Product: React.FC = () => {
   // Unit Save Handlers
   const saveNewUnit = async () => {
     if (!unitForm.name) return;
-    await addDoc(collection(db, 'units'), {
+    await setDoc(doc(db, 'units', unitForm.name), {
       name: unitForm.name,
       description: unitForm.description,
     });
@@ -303,7 +303,7 @@ const Product: React.FC = () => {
   return (
     <div className="product-wrapper flex">
       <Sidebar />
-      <div className="product-container" style={{ marginLeft: '18rem' }}>
+      <div className="product-container">
         <h1>🍨 Product Management</h1>
 
         {/* Product Master List */}

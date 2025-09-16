@@ -1,10 +1,10 @@
 
 .inventory-container {
-  margin-left: 220px;
   padding: 30px;
   background-color: #f9fafb;
   min-height: 100vh;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  transition: margin-left 0.3s ease;
 }
 
 .inventory-header {
@@ -210,4 +210,35 @@
 /* Hover effect for detail table */
 .detail-table tr:hover {
   background-color: #f9f9f9;
+}
+
+/* Month/year search styles */
+.month-year-search {
+  display: flex;
+  align-items: center;
+  margin: 1rem 0 1rem 2rem; /* added left margin to create gap from search box */
+  gap: 1.5rem; /* spacing between month, year, and OK button */
+}
+
+.month-year-search select {
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+}
+
+.month-year-search button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  background-color: #ff6b3d;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.month-year-search button:hover {
+  background-color: #ff8c66;
 }

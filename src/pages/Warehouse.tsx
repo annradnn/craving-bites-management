@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   collection,
   getDocs,
-  addDoc,
   updateDoc,
   doc,
   deleteDoc,
@@ -24,6 +23,36 @@ const Warehouse = () => {
     totalItems: number;
   };
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
+  // State to store the full list of warehouses (unfiltered)
+  const [allWarehouses, setAllWarehouses] = useState<WarehouseType[]>([]);
+  // Staff assigned state: maps warehouseId to staff list
+  const [staffAssigned, setStaffAssigned] = useState<Record<string, { staffEmail: string, name: string, role: string }[]>>({});
+  // Fetch staffAssigned: for each warehouse, get staffAssigned subcollection
+  const fetchStaffAssignments = useCallback(async () => {
+    try {
+      // Get all warehouses
+      const warehouseSnap = await getDocs(collection(db, "warehouses"));
+      const warehouseIds = warehouseSnap.docs.map(doc => doc.id);
+      // Prepare warehouseId => staff[] mapping
+      const assignments: Record<string, { staffEmail: string, name: string, role: string }[]> = {};
+      await Promise.all(
+        warehouseIds.map(async (warehouseId) => {
+          const staffSnap = await getDocs(collection(db, "warehouses", warehouseId, "staffAssigned"));
+          assignments[warehouseId] = staffSnap.docs.map(staffDoc => {
+            const data = staffDoc.data();
+            return {
+              staffEmail: data.staffEmail,
+              name: data.name,
+              role: data.role,
+            };
+          });
+        })
+      );
+      setStaffAssigned(assignments);
+    } catch {
+      setStaffAssigned({});
+    }
+  }, []);
 
   // Product Master List
   type Product = {
@@ -33,6 +62,7 @@ const Warehouse = () => {
     category: string;
     unit: string;
     expiryDate: string;
+    // lowStockThreshold is NOT in the local type, as it's only in the database
   };
   // WarehouseType defined above
   type Stock = {
@@ -63,6 +93,10 @@ const Warehouse = () => {
   }, []);
 
   const [warehouseStock, setWarehouseStock] = useState<Record<string, Stock[]>>({});
+  // State for low stock alerts
+  const [lowStockAlerts, setLowStockAlerts] = useState<
+    { warehouseName: string; productName: string; code: string; quantity: number }[]
+  >([]);
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<{
@@ -280,8 +314,12 @@ const Warehouse = () => {
         By: localStorage.getItem('name') || "", // Store staff name
         category: productObj.category,
       });
+      // Generate custom transactionId for transaction log
+      const dateCode = new Date().toISOString().slice(0,10).replace(/-/g,"");
+      const transactionId = `${warehouseId}-${trimmedCode}-stockIn-${reason}-${dateCode}`;
       // Log transaction, code = trimmedCode
-      await addDoc(collection(db, "warehouses", warehouseId, "transactions"), {
+      await setDoc(doc(db, "warehouses", warehouseId, "transactions", transactionId), {
+        id: transactionId,
         type: "stockIn",
         productId: trimmedCode,
         product: productObj.name,
@@ -331,15 +369,20 @@ const Warehouse = () => {
       }
       const newQty = currentQty - quantity;
       await updateDoc(stockRef, { quantity: newQty });
+      // Generate custom transactionId for transaction log
+      const dateCode = new Date().toISOString().slice(0,10).replace(/-/g,"");
+      const reason = stockForm.reason;
+      const transactionId = `${warehouseId}-${batchStock.code}-stockOut-${reason}-${dateCode}`;
       // Log transaction
-      await addDoc(collection(db, "warehouses", warehouseId, "transactions"), {
+      await setDoc(doc(db, "warehouses", warehouseId, "transactions", transactionId), {
+        id: transactionId,
         type: "stockOut",
         productId: batchStock.code, // productId is same as batch code
         product: productObj.name,
         code,
         quantity,
         unit: productObj.unit,
-        reason: stockForm.reason,
+        reason,
         timestamp: serverTimestamp(),
         By: localStorage.getItem('name') || "",
         category: productObj.category,
@@ -409,8 +452,15 @@ const Warehouse = () => {
           category: productObj.category,
         });
       }
-      // Log transactions for both warehouses
-      await addDoc(collection(db, "warehouses", fromId, "transactions"), {
+      // Generate unique transaction IDs with date and time (hours, minutes, seconds)
+      const now = new Date();
+      const dateCode = now.toISOString().slice(0,10).replace(/-/g,"");
+      const timeCode = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+      const transactionIdFrom = `${fromId}-${code}-transferOut-Transfer-${dateCode}-${timeCode}`;
+      const transactionIdTo = `${toId}-${code}-transferIn-Transfer-${dateCode}-${timeCode}`;
+      // Log transactions for both warehouses with unique IDs
+      await setDoc(doc(db, "warehouses", fromId, "transactions", transactionIdFrom), {
+        id: transactionIdFrom,
         type: "transferOut",
         productId: code, // batch code
         product: productObj.name,
@@ -418,11 +468,13 @@ const Warehouse = () => {
         quantity,
         unit: productObj.unit,
         toWarehouseId: toId,
+        reason: "Transfer",
         timestamp: serverTimestamp(),
         By: localStorage.getItem('name') || "",
         category: productObj.category,
       });
-      await addDoc(collection(db, "warehouses", toId, "transactions"), {
+      await setDoc(doc(db, "warehouses", toId, "transactions", transactionIdTo), {
+        id: transactionIdTo,
         type: "transferIn",
         productId: code, // batch code
         product: productObj.name,
@@ -430,6 +482,7 @@ const Warehouse = () => {
         quantity,
         unit: productObj.unit,
         fromWarehouseId: fromId,
+        reason: "Transfer",
         timestamp: serverTimestamp(),
         By: localStorage.getItem('name') || "",
         category: productObj.category,
@@ -677,28 +730,23 @@ const Warehouse = () => {
     closeTransferModal();
   };
 
-  // Fetch warehouses from Firestore
+  // Fetch warehouses from Firestore (no more assignedWarehouse logic)
   const fetchWarehouses = useCallback(async () => {
     try {
       const snapshot = await getDocs(collection(db, "warehouses"));
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<WarehouseType, "id">),
+      const data = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<WarehouseType, "id">),
       }));
-      setWarehouses(
-        data.map((w) => ({
-          ...w,
-          id: w.id,
-          totalItems: 0, // Will be calculated from stock
-        }))
-      );
+      setAllWarehouses(data); // Save the full data for later filtering
     } catch {
       // fallback: empty
+      setAllWarehouses([]);
       setWarehouses([]);
     }
   }, []);
 
-  // Fetch all stock for all warehouses, include category from product
+  // Fetch all stock for all warehouses, include category from product, and update stock doc if product details changed
   const fetchWarehouseStock = useCallback(async () => {
     try {
       const stockObj: Record<string, Stock[]> = {};
@@ -706,32 +754,54 @@ const Warehouse = () => {
       for (const warehouseDoc of snapshot.docs) {
         const warehouseId = warehouseDoc.id;
         const stockSnap = await getDocs(collection(db, "warehouses", warehouseId, "stock"));
-        stockObj[warehouseId] = stockSnap.docs.map(doc => {
-          const data = doc.data();
-          // Find product by name or code to get category
-          let productCategory = "";
-          // Try match by id (productId), code, or name
-          const prod =
-            products.find(p => p.id === data.productId) ||
-            products.find(p => p.code === data.code) ||
-            products.find(p => p.name === data.product);
-          if (prod) {
-            productCategory = prod.category;
-          }
-          return {
-            id: doc.id,
-            product: data.product,
-            productId: data.productId ?? "",
-            code: data.code,
-            quantity: data.quantity,
-            unit: data.unit,
-            expiryDate: data.expiryDate,
-            reason: data.reason,
-            createdAt: data.createdAt ? data.createdAt.toDate?.() : undefined,
-            By: data.By ?? "", // Ensure By is included and not undefined
-            category: data.category || productCategory,
-          };
-        });
+        // Map for each stock doc
+        stockObj[warehouseId] = await Promise.all(
+          stockSnap.docs.map(async docSnap => {
+            const data = docSnap.data();
+            // Find matching product
+            const prod =
+              products.find(p => p.id === data.productId) ||
+              products.find(p => p.code === data.code) ||
+              products.find(p => p.name === data.product);
+            // Check and update doc if product details changed
+            if (
+              prod &&
+              (
+                data.product !== prod.name ||
+                data.unit !== prod.unit ||
+                data.category !== prod.category
+              )
+            ) {
+              // Update Firestore doc with new product info
+              try {
+                await updateDoc(
+                  doc(db, "warehouses", warehouseId, "stock", docSnap.id),
+                  {
+                    product: prod.name,
+                    unit: prod.unit,
+                    category: prod.category,
+                  }
+                );
+              } catch {
+                // Optionally log error, but don't block
+              }
+            }
+            // Use updated product info from prod if available
+            return {
+              id: docSnap.id,
+              product: prod ? prod.name : data.product,
+              productId: data.productId ?? "",
+              code: data.code,
+              quantity: data.quantity,
+              unit: prod ? prod.unit : data.unit,
+              expiryDate: data.expiryDate,
+              reason: data.reason,
+              createdAt: data.createdAt ? data.createdAt.toDate?.() : undefined,
+              By: data.By ?? "",
+              category: prod ? prod.category : (data.category || ""),
+            };
+          })
+        );
       }
       setWarehouseStock(stockObj);
     } catch {
@@ -739,26 +809,140 @@ const Warehouse = () => {
     }
   }, [products]);
 
-  // Real-time listeners for warehouses and stock
+  // Function to check for low stock alerts (per-product, summed across all batches)
+  const checkLowStockAlerts = useCallback(async () => {
+    // Fallback threshold if not set in DB
+    const DEFAULT_THRESHOLD = 10;
+    // Build a map of product name to threshold by fetching lowStockThreshold from Firestore for each product
+    // This is async, so use Promise.all for all products
+    const productThresholdMap: Record<string, number> = {};
+    await Promise.all(
+      products.map(async (p: Product) => {
+        try {
+          const docSnap = await getDoc(doc(db, "products", p.id));
+          const data = docSnap.exists() ? docSnap.data() : {};
+          if (typeof data.lowStockThreshold === "number" && !isNaN(data.lowStockThreshold)) {
+            productThresholdMap[p.name] = data.lowStockThreshold;
+          } else {
+            productThresholdMap[p.name] = DEFAULT_THRESHOLD;
+          }
+        } catch {
+          productThresholdMap[p.name] = DEFAULT_THRESHOLD;
+        }
+      })
+    );
+    const alerts: { warehouseName: string; productName: string; code: string; quantity: number }[] = [];
+    warehouses.forEach((warehouse) => {
+      const stockArr = warehouseStock[warehouse.id] || [];
+      // Group stock by product name, sum quantities
+      const productSums: Record<string, { totalQty: number, batches: { code: string, qty: number }[] }> = {};
+      stockArr.forEach((stock) => {
+        // Only consider positive quantities
+        if (typeof stock.quantity === "number" && stock.quantity > 0) {
+          if (!productSums[stock.product]) {
+            productSums[stock.product] = { totalQty: 0, batches: [] };
+          }
+          productSums[stock.product].totalQty += stock.quantity;
+          productSums[stock.product].batches.push({ code: stock.code, qty: stock.quantity });
+        }
+      });
+      // For each product, check if totalQty <= threshold
+      Object.entries(productSums).forEach(([productName, { totalQty, batches }]) => {
+        const threshold = productThresholdMap[productName] ?? DEFAULT_THRESHOLD;
+        if (totalQty <= threshold) {
+          // Alert for each batch of this product in this warehouse, as per requirements
+          batches.forEach(batch => {
+            alerts.push({
+              warehouseName: warehouse.name,
+              productName,
+              code: batch.code,
+              quantity: batch.qty,
+            });
+          });
+        }
+      });
+    });
+    setLowStockAlerts(alerts);
+  }, [warehouses, warehouseStock, products]);
+
+  // Real-time listeners for warehouses and stock, and staffAssigned
   useEffect(() => {
     // Warehouses
     const unsubWarehouses = onSnapshot(collection(db, "warehouses"), () => {
       fetchWarehouses();
       fetchWarehouseStock();
+      fetchStaffAssignments();
     });
+    // For each warehouse, listen to its staffAssigned subcollection
+    let staffUnsubs: (() => void)[] = [];
+    // Set up listeners for staffAssigned subcollections
+    (async () => {
+      const warehouseSnap = await getDocs(collection(db, "warehouses"));
+      staffUnsubs = warehouseSnap.docs.map((warehouseDoc) => {
+        const warehouseId = warehouseDoc.id;
+        return onSnapshot(collection(db, "warehouses", warehouseId, "staffAssigned"), () => {
+          fetchStaffAssignments();
+        });
+      });
+    })();
     // Initial fetch
     fetchWarehouses();
     fetchWarehouseStock();
+    fetchStaffAssignments();
     return () => {
       unsubWarehouses();
+      staffUnsubs.forEach(unsub => unsub && unsub());
     };
-  }, [fetchWarehouses, fetchWarehouseStock]);
+  }, [fetchWarehouses, fetchWarehouseStock, fetchStaffAssignments]);
+  // Remove previous effect that syncs staffAssigned from users collection, now handled in fetchStaffAssignments
+
+  // Show all warehouses to all users, no filtering by staffAssigned or email
+  useEffect(() => {
+    setWarehouses(allWarehouses);
+  }, [allWarehouses]);
+
+  // Check low stock alerts whenever warehouses or warehouseStock change
+  useEffect(() => {
+    // Call the async version and ignore unhandled promise
+    checkLowStockAlerts();
+  }, [warehouses, warehouseStock, checkLowStockAlerts]);
 
   return (
     <div className="product-wrapper flex">
       <Sidebar />
-      <div className="product-container" style={{ marginLeft: '18rem' }}>
+      <div className="product-container">
         <h1>🏭 Warehouse</h1>
+        {/* Low Stock Alerts - displayed as a table */}
+        {lowStockAlerts.length > 0 && (
+          <div style={{ background: "#fffbe7", border: "1px solid #ffe58f", borderRadius: "6px", padding: "1rem", marginBottom: "1.5rem" }}>
+            <h3 style={{ color: "#ad6800", margin: "0 0 0.5em 0" }}>⚠️ Low Stock Alerts</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", background: "#fffbe7" }}>
+              <thead>
+                <tr>
+                  <th style={{ borderBottom: "1px solid #ffe58f", textAlign: "left", padding: "4px" }}>Warehouse</th>
+                  <th style={{ borderBottom: "1px solid #ffe58f", textAlign: "left", padding: "4px" }}>Product Name</th>
+                  <th style={{ borderBottom: "1px solid #ffe58f", textAlign: "left", padding: "4px" }}>Code</th>
+                  <th style={{ borderBottom: "1px solid #ffe58f", textAlign: "left", padding: "4px" }}>Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lowStockAlerts.map(
+                  (
+                    alert: { warehouseName: string; productName: string; code: string; quantity: number },
+                    idx: number
+                  ) => (
+                    <tr key={alert.warehouseName + alert.productName + alert.code + idx}>
+                      <td style={{ padding: "4px" }}>{alert.warehouseName}</td>
+                      <td style={{ padding: "4px" }}>{alert.productName}</td>
+                      <td style={{ padding: "4px" }}>{alert.code}</td>
+                      <td style={{ padding: "4px" }}>{alert.quantity}</td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
         <table className="product-table">
           <thead>
             <tr>
@@ -767,18 +951,20 @@ const Warehouse = () => {
               <th>Status</th>
               <th>Total Items</th>
               <th>Actions</th>
+              <th>Assigned Staff</th>
             </tr>
           </thead>
           <tbody>
             {warehouses.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: "center" }}>No warehouses</td>
+                <td colSpan={6} style={{ textAlign: "center" }}>No warehouses</td>
               </tr>
             ) : (
               warehouses.map((warehouse: WarehouseType) => {
                 // Filter out zero-quantity stock items for total calculation
                 const filteredStock = (warehouseStock[warehouse.id] || []).filter((s: Stock) => s.quantity !== 0);
                 const totalQuantity = filteredStock.reduce((sum: number, s: Stock) => sum + s.quantity, 0) || 0;
+                const staffList = staffAssigned[warehouse.id] || [];
                 return (
                   <tr key={warehouse.id}>
                     <td>{warehouse.name}</td>
@@ -793,6 +979,19 @@ const Warehouse = () => {
                         </>
                       )}
                     </td>
+                    <td>
+                      {staffList.length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {staffList.map((s, idx) => (
+                            <li key={s.staffEmail + idx}>
+                              {s.name}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span style={{ color: "#888" }}>-</span>
+                      )}
+                    </td>
                   </tr>
                 )
               })
@@ -803,16 +1002,15 @@ const Warehouse = () => {
           {localStorage.getItem("role") === "admin" && (
             <button className="btn primary-btn" onClick={handleAddWarehouse}>Add Warehouse</button>
           )}
-          <button className="btn secondary-btn" onClick={() => alert("Transfer Stock clicked")}>Transfer Stock</button>
-          <button className="btn secondary-btn" onClick={() => alert("View Stock clicked")}>View Stock</button>
         </div>
 
         {warehouses.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '2rem' }}>
-            {warehouses.map((warehouse: WarehouseType) => {
+            {warehouses.map((warehouse) => {
               // Filter out zero-quantity stock items for display and total
               const filteredStock = (warehouseStock[warehouse.id] || []).filter((s: Stock) => s.quantity !== 0);
               const totalQuantity = filteredStock.reduce((sum: number, s: Stock) => sum + s.quantity, 0) || 0;
+              // const staffList = staffAssigned[warehouse.id] || [];
               return (
                 <div key={warehouse.id} style={{
                   border: '1px solid #ccc',
@@ -1088,12 +1286,12 @@ const Warehouse = () => {
                       >
                         <option value="">Select product</option>
                         {products.map((p: Product) => {
-                          // Only show products available in this warehouse
+                          // Only show products available in this warehouse with quantity > 0
                           if (stockModal.warehouseId === null) return null;
                           const stockArr = warehouseStock[stockModal.warehouseId] || [];
                           if (
                             !stockArr.find(
-                              (s: Stock) => s.product === p.name
+                              (s: Stock) => s.product === p.name && s.quantity !== 0
                             )
                           ) {
                             return null;
@@ -1122,7 +1320,10 @@ const Warehouse = () => {
                           {(warehouseStock[stockModal.warehouseId] || [])
                             .filter(s => {
                               const productObj = products.find(p => p.id === stockForm.productId);
-                              return s.product === (productObj?.name ?? "");
+                              return (
+                                s.product === (productObj?.name ?? "") &&
+                                s.quantity !== 0
+                              );
                             })
                             .map((s, idx) => (
                               <option key={s.code + idx} value={s.code}>
@@ -1242,11 +1443,11 @@ const Warehouse = () => {
                   >
                     <option value="">Select product</option>
                     {products.map((p: Product) => {
-                      // Only show products that exist in source warehouse
+                      // Only show products that exist in source warehouse with quantity > 0
                       if (transferModal.fromWarehouseId === null) return null;
                       const stockArr = warehouseStock[transferModal.fromWarehouseId] || [];
                       const prodStock = stockArr.find(
-                        (s: Stock) => s.product === p.name
+                        (s: Stock) => s.product === p.name && s.quantity !== 0
                       );
                       if (!prodStock) return null;
                       return (
@@ -1270,11 +1471,13 @@ const Warehouse = () => {
                       style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
                     >
                       <option value="">Select batch</option>
-                      {transferBatchList.map((b, idx) => (
-                        <option key={b.code + idx} value={b.code}>
-                          {b.code} (Qty: {b.availableQty}, Exp: {b.expiryDate})
-                        </option>
-                      ))}
+                      {transferBatchList
+                        .filter(b => b.availableQty !== 0)
+                        .map((b, idx) => (
+                          <option key={b.code + idx} value={b.code}>
+                            {b.code} (Qty: {b.availableQty}, Exp: {b.expiryDate})
+                          </option>
+                        ))}
                     </select>
                   </label>
                 </div>

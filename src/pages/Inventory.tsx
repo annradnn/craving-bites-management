@@ -1,7 +1,14 @@
+// removed unused import: doc, getDoc
+// Low Stock Alerts logic moved inside the Inventory component below
 import React from "react";
 import { getFirestore, collection, getDocs, Timestamp } from "firebase/firestore";
+// removed unused import
 import Sidebar from "../components/Sidebar";
 import "./Inventory.css";
+import { utils as XLSXUtils, writeFile as writeXLSXFile } from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { parse } from 'date-fns';
 
 interface InventoryItem {
   product: string;
@@ -15,6 +22,9 @@ interface InventoryItem {
   lastUpdatedAt?: string;
   reason?: string;
   updatedByName?: string;
+  fromWarehouse?: string;
+  toWarehouse?: string;
+  type?: string;
 }
 
 export default function Inventory() {
@@ -22,8 +32,10 @@ export default function Inventory() {
   const [selectedItem, setSelectedItem] = React.useState<InventoryItem | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<InventoryItem[]>([]);
+  const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = React.useState<number>(new Date().getFullYear());
 
-  // Fetch inventory from all warehouse stock subcollections
+  // Fetch inventory from all warehouse transactions subcollections
   const fetchInventory = async () => {
     try {
       const db = getFirestore();
@@ -34,14 +46,14 @@ export default function Inventory() {
         const warehouseData = warehouseDoc.data();
         const warehouseName = warehouseData.name || warehouseDoc.id;
 
-        const stockSnapshot = await getDocs(
-          collection(db, "warehouses", warehouseDoc.id, "stock")
+        const transactionsSnapshot = await getDocs(
+          collection(db, "warehouses", warehouseDoc.id, "transactions")
         );
 
-        for (const docSnap of stockSnapshot.docs) {
+        for (const docSnap of transactionsSnapshot.docs) {
           const data = docSnap.data();
 
-          // Use 'By' field directly from stock document
+          // Use 'By' field directly from transaction document
           let staffName: string | undefined = undefined;
           if (typeof data.By === "string" && data.By.trim() !== "") {
             staffName = data.By;
@@ -55,14 +67,28 @@ export default function Inventory() {
             expiryStr = data.expiryDate;
           }
 
-          // Handle createdAt display (mapped to lastUpdatedAt)
+          // Handle date/timestamp display (mapped to lastUpdatedAt)
           let lastUpdatedAtStr: string | undefined = undefined;
-          if (data.createdAt?.toDate) {
-            lastUpdatedAtStr = data.createdAt.toDate().toLocaleString();
-          } else if (typeof data.createdAt === "string") {
-            lastUpdatedAtStr = data.createdAt;
+          if (data.date?.toDate) {
+            lastUpdatedAtStr = data.date.toDate().toLocaleString();
+          } else if (data.timestamp?.toDate) {
+            lastUpdatedAtStr = data.timestamp.toDate().toLocaleString();
+          } else if (typeof data.date === "string") {
+            lastUpdatedAtStr = data.date;
+          } else if (typeof data.timestamp === "string") {
+            lastUpdatedAtStr = data.timestamp;
           }
 
+          let reasonStr: string | undefined = undefined;
+          if (data.type === "transferOut" && data.toWarehouse) {
+            reasonStr = `Transfer OUT → ${data.toWarehouse}`;
+          } else if (data.type === "transferIn" && data.fromWarehouse) {
+            reasonStr = `Transfer IN ← ${data.fromWarehouse}`;
+          } else if (typeof data.reason === "string") {
+            reasonStr = data.reason;
+          }
+
+          // Each transaction document creates a new InventoryItem entry
           inventoryItems.push({
             product: typeof data.product === "string" ? data.product : "",
             code: typeof data.code === "string" ? data.code : "",
@@ -73,15 +99,48 @@ export default function Inventory() {
             warehouse: warehouseName,
             lastUpdatedBy: typeof data.lastUpdatedBy === "string" ? data.lastUpdatedBy : undefined,
             lastUpdatedAt: lastUpdatedAtStr,
-            reason: typeof data.reason === "string" ? data.reason : undefined,
+            reason: reasonStr,
             updatedByName: staffName,
+            fromWarehouse: typeof data.fromWarehouse === "string" ? data.fromWarehouse :
+                           typeof data.fromWarehouseId === "string" ? data.fromWarehouseId : undefined,
+            toWarehouse: typeof data.toWarehouse === "string" ? data.toWarehouse :
+                         typeof data.toWarehouseId === "string" ? data.toWarehouseId : undefined,
+            type: typeof data.type === "string" ? data.type : undefined,
           });
         }
       }
 
+      inventoryItems.sort((a, b) => {
+        const dateA = a.lastUpdatedAt ? new Date(a.lastUpdatedAt).getTime() : 0;
+        const dateB = b.lastUpdatedAt ? new Date(b.lastUpdatedAt).getTime() : 0;
+        return dateB - dateA; // latest first
+      });
+      // Show all transactions (each transaction individually)
       setItems(inventoryItems);
     } catch (error) {
       console.error("Error fetching inventory data:", error);
+    }
+  };
+
+  // Filter the current inventory items by selected month and year,
+  // showing the filtered results in searchResults without overwriting items.
+  const applyMonthYearFilter = () => {
+    const filteredItems = items.filter(item => {
+      if (!item.lastUpdatedAt) return false;
+      // Try parsing as 'dd/MM/yyyy, HH:mm:ss' or fallback to Date parsing
+      let date: Date;
+      try {
+        date = parse(item.lastUpdatedAt, 'dd/MM/yyyy, HH:mm:ss', new Date());
+      } catch {
+        date = new Date(item.lastUpdatedAt);
+      }
+      return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
+    });
+    if (filteredItems.length === 0) {
+      setSearchResults([]); // clear previous results
+      alert(`No data found for ${new Date(0, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`);
+    } else {
+      setSearchResults(filteredItems);
     }
   };
 
@@ -89,23 +148,12 @@ export default function Inventory() {
     fetchInventory();
   }, []);
 
-  // Filter items by search term
+  // Filter items by search term (dynamically on all string values)
   const filterItemsBySearch = (allItems: InventoryItem[], term: string) => {
     const lowerTerm = term.toLowerCase();
     return allItems.filter((item) => {
-      const stringFields: (string | undefined)[] = [
-        item.product,
-        item.code,
-        item.category,
-        item.unit,
-        item.warehouse,
-        item.updatedByName,
-        item.lastUpdatedAt,
-        item.expiry,
-        item.reason,
-      ];
-      return stringFields.some(
-        (field) => field?.toLowerCase().includes(lowerTerm)
+      return Object.values(item).some((value) =>
+        typeof value === "string" && value.toLowerCase().includes(lowerTerm)
       );
     });
   };
@@ -118,16 +166,53 @@ export default function Inventory() {
     }
   }, [searchTerm, items]);
 
-  // Group items by category
-  const groupedItems = items.reduce(
-    (groups: { [key: string]: InventoryItem[] }, item) => {
-      const category = item.category || "Uncategorized";
-      if (!groups[category]) groups[category] = [];
-      groups[category].push(item);
-      return groups;
-    },
-    {}
-  );
+  const highlightText = (text: string | undefined, searchTerm: string) => {
+    if (!text) return text;
+    if (!searchTerm) return text;
+    const regex = new RegExp(`(${searchTerm})`, "gi");
+    return text.split(regex).map((part, i) =>
+      part.toLowerCase() === searchTerm.toLowerCase() ? <mark key={i}>{part}</mark> : part
+    );
+  };
+
+  const exportCSV = () => {
+    const displayedItems = searchTerm.trim() !== "" ? searchResults : items;
+    const worksheet = XLSXUtils.json_to_sheet(displayedItems);
+    const workbook = XLSXUtils.book_new();
+    XLSXUtils.book_append_sheet(workbook, worksheet, "Inventory");
+    writeXLSXFile(workbook, "inventory.csv");
+  };
+
+  const exportPDF = () => {
+    const displayedItems = searchTerm.trim() !== "" ? searchResults : items;
+    const doc = new jsPDF();
+    const tableColumn = ["Product", "Code", "Category", "Quantity", "Unit", "Expiry Date", "Warehouse", "By", "Updated At", "Reason", "Transfer Direction"];
+    const tableRows: (string | number)[][] = [];
+
+    displayedItems.forEach(item => {
+      tableRows.push([
+        item.product,
+        item.code,
+        item.category,
+        item.quantity,
+        item.unit,
+        item.expiry || "",
+        item.warehouse || "",
+        item.updatedByName || "",
+        item.lastUpdatedAt || "",
+        item.reason || "",
+        item.type === "transferOut" && item.toWarehouse ? `OUT ${item.toWarehouse}` :
+        item.type === "transferIn" && item.fromWarehouse ? `IN ${item.fromWarehouse}` : ""
+      ]);
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+    });
+
+    doc.save("inventory.pdf");
+  };
 
   const renderSearchFlatTableHeader = () => (
     <thead>
@@ -142,32 +227,60 @@ export default function Inventory() {
         <th>By</th>
         <th>Updated At</th>
         <th>Reason</th>
+        <th>Transfer Direction</th>
       </tr>
     </thead>
   );
 
   const renderSearchFlatRow = (item: InventoryItem, idx: number) => (
     <tr key={(item.code || idx) + "-flat"}>
-      <td onClick={() => setSelectedItem(item)} className="clickable">{item.product}</td>
-      <td>{item.code}</td>
-      <td>{item.category}</td>
+      <td onClick={() => setSelectedItem(item)} className="clickable">{highlightText(item.product, searchTerm)}</td>
+      <td>{highlightText(item.code, searchTerm)}</td>
+      <td>{highlightText(item.category, searchTerm)}</td>
       <td>{item.quantity}</td>
-      <td>{item.unit}</td>
-      <td>{item.expiry}</td>
-      <td>{item.warehouse}</td>
-      <td>{item.updatedByName}</td>
-      <td>{item.lastUpdatedAt}</td>
-      <td>{item.reason}</td>
+      <td>{highlightText(item.unit, searchTerm)}</td>
+      <td>{highlightText(item.expiry, searchTerm)}</td>
+      <td>{highlightText(item.warehouse, searchTerm)}</td>
+      <td>{highlightText(item.updatedByName, searchTerm)}</td>
+      <td>{highlightText(item.lastUpdatedAt, searchTerm)}</td>
+      <td>{highlightText(item.reason, searchTerm)}</td>
+      <td>
+        {highlightText(
+          item.type === "transferOut" && item.toWarehouse ? `OUT ${item.toWarehouse}` :
+          item.type === "transferIn" && item.fromWarehouse ? `IN ${item.fromWarehouse}` :
+          "", searchTerm)}
+      </td>
     </tr>
   );
 
   return (
     <div className="inventory-wrapper flex">
       <Sidebar />
-      <div className="inventory-container" style={{ marginLeft: "18rem" }}>
+      <div className="inventory-container">
         <div className="inventory-header">
           <h1>Inventory</h1>
           <hr style={{ marginBottom: "1rem" }} />
+          <div className="month-year-search">
+            <label>
+              Month:
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
+                {[...Array(12).keys()].map(m => (
+                  <option key={m} value={m}>{new Date(0, m).toLocaleString('default', { month: 'long' })}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Year:
+              <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </label>
+
+            <button onClick={applyMonthYearFilter}>OK</button>
+          </div>
           <div className="inventory-search">
             <input
               type="text"
@@ -175,25 +288,18 @@ export default function Inventory() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <select>
-              <option value="">Filter by Category</option>
-              <option value="icecream">Ice Cream</option>
-              <option value="cone">Cones</option>
-              <option value="topping">Toppings</option>
-            </select>
-            <select>
-              <option value="">Sort by</option>
-              <option value="expiry">Expiry Date</option>
-              <option value="stock">Stock Level</option>
-            </select>
           </div>
         </div>
 
         <div className="quick-nav-container" style={{ marginBottom: "1rem" }}>
-          {["Stock List", "Low Stock Alerts", "Expiring Soon", "Batch Management"].map((section) => (
+          {["Stock List", /*"Low Stock Alerts",*/ "Expiring Soon", "Batch Management"].map((section) => (
             <button
               key={section}
               onClick={() => {
+                if(section === "Stock List") {
+                  setSelectedMonth(new Date().getMonth());
+                  setSelectedYear(new Date().getFullYear());
+                }
                 const el = document.getElementById(section.replace(/\s+/g, '-').toLowerCase());
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
@@ -206,86 +312,24 @@ export default function Inventory() {
         <div className="inventory-section" id="stock-list">
           <h2>📦 Stock List</h2>
           <div className="stock-list-box">
-            <div className="category-links" style={{ marginBottom: "1rem" }}>
-              {["Product", "Fruits", "Raw Materials", "Packaging", "Tools", "Flavors", "Others"].map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => {
-                    const el = document.getElementById(cat.replace(/\s+/g, '-').toLowerCase());
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
             <table className="inventory-table">
-              {searchTerm.trim() !== "" ? (
-                <>
-                  {renderSearchFlatTableHeader()}
-                  <tbody>
-                    {searchResults.length > 0 ? (
-                      searchResults.map((item, idx) => renderSearchFlatRow(item, idx))
-                    ) : (
-                      <tr>
-                        <td colSpan={10} style={{ textAlign: "center" }}>No results found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </>
-              ) : (
-                <>
-                  <thead>
+              {renderSearchFlatTableHeader()}
+              <tbody>
+                {(() => {
+                  const displayedItems = searchTerm.trim() !== "" ? searchResults : items;
+                  return displayedItems.length > 0 ? (
+                    displayedItems.map((item, idx) => renderSearchFlatRow(item, idx))
+                  ) : (
                     <tr>
-                      <th>Product</th>
-                      <th>Code</th>
-                      <th>Category</th>
-                      <th>Quantity</th>
-                      <th>Unit</th>
-                      <th>Expiry Date</th>
-                      <th>Warehouse</th>
-                      <th>By</th>
-                      <th>Updated At</th>
-                      <th>Reason</th>
+                      <td colSpan={11} style={{ textAlign: "center" }}>No results found.</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(groupedItems).map(([category, itemsInCategory]) => (
-                      <React.Fragment key={category}>
-                        <tr
-                          id={category.replace(/\s+/g, '-').toLowerCase()}
-                          className="category-row"
-                        >
-                          <td colSpan={10} style={{ fontWeight: "bold", backgroundColor: "#f0f0f0" }}>
-                            {category}
-                          </td>
-                        </tr>
-                        {itemsInCategory.map((item, idx) => (
-                          <tr key={item.code || idx}>
-                            <td onClick={() => setSelectedItem(item)} className="clickable">{item.product}</td>
-                            <td>{item.code}</td>
-                            <td>{item.category}</td>
-                            <td>{item.quantity}</td>
-                            <td>{item.unit}</td>
-                            <td>{item.expiry}</td>
-                            <td>{item.warehouse}</td>
-                            <td>{item.updatedByName}</td>
-                            <td>{item.lastUpdatedAt}</td>
-                            <td>{item.reason}</td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </>
-              )}
+                  );
+                })()}
+              </tbody>
             </table>
-
             <div className="table-actions">
-              <button className="btn btn-primary">Export CSV</button>
-              <button className="btn btn-primary">Export PDF</button>
-              <button className="btn btn-secondary">Print Report</button>
+              <button className="btn btn-primary" onClick={exportCSV}>Export CSV</button>
+              <button className="btn btn-primary" onClick={exportPDF}>Export PDF</button>
             </div>
           </div>
         </div>
