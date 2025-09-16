@@ -35,6 +35,14 @@ export default function Inventory() {
   const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = React.useState<number>(new Date().getFullYear());
 
+  const parseDateString = (dateStr: string): Date => {
+    try {
+      return parse(dateStr, 'dd/MM/yyyy, HH:mm:ss', new Date());
+    } catch {
+      return new Date(dateStr);
+    }
+  };
+
   // Fetch inventory from all warehouse transactions subcollections
   const fetchInventory = async () => {
     try {
@@ -111,9 +119,9 @@ export default function Inventory() {
       }
 
       inventoryItems.sort((a, b) => {
-        const dateA = a.lastUpdatedAt ? new Date(a.lastUpdatedAt).getTime() : 0;
-        const dateB = b.lastUpdatedAt ? new Date(b.lastUpdatedAt).getTime() : 0;
-        return dateB - dateA; // latest first
+        const timeA = a.lastUpdatedAt ? parseDateString(a.lastUpdatedAt).getTime() : 0;
+        const timeB = b.lastUpdatedAt ? parseDateString(b.lastUpdatedAt).getTime() : 0;
+        return timeB - timeA; // latest updates first
       });
       // Show all transactions (each transaction individually)
       setItems(inventoryItems);
