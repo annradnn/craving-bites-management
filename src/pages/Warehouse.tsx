@@ -943,61 +943,63 @@ const Warehouse = () => {
             </table>
           </div>
         )}
-        <table className="product-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Location</th>
-              <th>Status</th>
-              <th>Total Items</th>
-              <th>Actions</th>
-              <th>Assigned Staff</th>
-            </tr>
-          </thead>
-          <tbody>
-            {warehouses.length === 0 ? (
+        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          <table className="product-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ textAlign: "center" }}>No warehouses</td>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Total Items</th>
+                <th>Actions</th>
+                <th>Assigned Staff</th>
               </tr>
-            ) : (
-              warehouses.map((warehouse: WarehouseType) => {
-                // Filter out zero-quantity stock items for total calculation
-                const filteredStock = (warehouseStock[warehouse.id] || []).filter((s: Stock) => s.quantity !== 0);
-                const totalQuantity = filteredStock.reduce((sum: number, s: Stock) => sum + s.quantity, 0) || 0;
-                const staffList = staffAssigned[warehouse.id] || [];
-                return (
-                  <tr key={warehouse.id}>
-                    <td>{warehouse.name}</td>
-                    <td>{warehouse.location}</td>
-                    <td>{warehouse.status}</td>
-                    <td>{totalQuantity}</td>
-                    <td>
-                      {localStorage.getItem("role") === "admin" && (
-                        <>
-                          <button className="btn action-btn" onClick={() => handleEditWarehouse(warehouse.id)}>Edit</button>
-                          <button className="btn action-btn" onClick={() => openConfirmModal("delete", warehouse.id)}>Delete</button>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      {staffList.length > 0 ? (
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {staffList.map((s, idx) => (
-                            <li key={s.staffEmail + idx}>
-                              {s.name}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span style={{ color: "#888" }}>-</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {warehouses.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center" }}>No warehouses</td>
+                </tr>
+              ) : (
+                warehouses.map((warehouse: WarehouseType) => {
+                  // Filter out zero-quantity stock items for total calculation
+                  const filteredStock = (warehouseStock[warehouse.id] || []).filter((s: Stock) => s.quantity !== 0);
+                  const totalQuantity = filteredStock.reduce((sum: number, s: Stock) => sum + s.quantity, 0) || 0;
+                  const staffList = staffAssigned[warehouse.id] || [];
+                  return (
+                    <tr key={warehouse.id}>
+                      <td>{warehouse.name}</td>
+                      <td>{warehouse.location}</td>
+                      <td>{warehouse.status}</td>
+                      <td>{totalQuantity}</td>
+                      <td>
+                        {localStorage.getItem("role") === "admin" && (
+                          <>
+                            <button className="btn action-btn" onClick={() => handleEditWarehouse(warehouse.id)}>Edit</button>
+                            <button className="btn action-btn" onClick={() => openConfirmModal("delete", warehouse.id)}>Delete</button>
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        {staffList.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: 18 }}>
+                            {staffList.map((s, idx) => (
+                              <li key={s.staffEmail + idx}>
+                                {s.name}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span style={{ color: "#888" }}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
         <div className="button-group">
           {localStorage.getItem("role") === "admin" && (
             <button className="btn primary-btn" onClick={handleAddWarehouse}>Add Warehouse</button>
@@ -1029,47 +1031,49 @@ const Warehouse = () => {
                   <p style={{ margin: 0 }}>
                     <strong>Total Items:</strong> {totalQuantity}
                   </p>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Product Name</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Category</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Code</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Quantity</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Unit</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Expiry Date</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Reason</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>By</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredStock.length > 0 ? (
-                        filteredStock.map((s: Stock, idx: number) => (
-                          <tr key={s.id || idx}>
-                            <td style={{ padding: '4px' }}>{s.product}</td>
-                            <td style={{ padding: '4px' }}>{s.category || "-"}</td>
-                            <td style={{ padding: '4px' }}>{s.code}</td>
-                            <td style={{ padding: '4px' }}>{s.quantity}</td>
-                            <td style={{ padding: '4px' }}>{s.unit}</td>
-                            <td style={{ padding: '4px' }}>{s.expiryDate}</td>
-                            <td style={{ padding: '4px' }}>{s.reason}</td>
-                            <td style={{ padding: '4px' }}>{s.By || "-"}</td>
-                          </tr>
-                        ))
-                      ) : (
+                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
                         <tr>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
-                          <td style={{ padding: '4px' }}>-</td>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Product Name</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Category</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Code</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Quantity</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Unit</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Expiry Date</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>Reason</th>
+                          <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px' }}>By</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {filteredStock.length > 0 ? (
+                          filteredStock.map((s: Stock, idx: number) => (
+                            <tr key={s.id || idx}>
+                              <td style={{ padding: '4px' }}>{s.product}</td>
+                              <td style={{ padding: '4px' }}>{s.category || "-"}</td>
+                              <td style={{ padding: '4px' }}>{s.code}</td>
+                              <td style={{ padding: '4px' }}>{s.quantity}</td>
+                              <td style={{ padding: '4px' }}>{s.unit}</td>
+                              <td style={{ padding: '4px' }}>{s.expiryDate}</td>
+                              <td style={{ padding: '4px' }}>{s.reason}</td>
+                              <td style={{ padding: '4px' }}>{s.By || "-"}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                            <td style={{ padding: '4px' }}>-</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                     <button className="btn secondary-btn" onClick={() => openStockModal("stockIn", warehouse.id)}>Stock In</button>
                     <button className="btn secondary-btn" onClick={() => openStockModal("stockOut", warehouse.id)}>Stock Out</button>
@@ -1101,7 +1105,8 @@ const Warehouse = () => {
                 background: "#fff",
                 padding: "2rem",
                 borderRadius: "8px",
-                minWidth: "320px",
+                width: "90%",
+                maxWidth: "480px",
                 boxShadow: "0 2px 16px rgba(0,0,0,0.18)",
                 position: "relative",
               }}
@@ -1115,7 +1120,7 @@ const Warehouse = () => {
                     name="warehouseId"
                     value={form.warehouseId}
                     onChange={handleInputChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                     disabled={!!form.id}
                     placeholder="Enter unique warehouse ID"
                   />
@@ -1129,7 +1134,7 @@ const Warehouse = () => {
                     name="name"
                     value={form.name}
                     onChange={handleInputChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                   />
                 </label>
               </div>
@@ -1141,7 +1146,7 @@ const Warehouse = () => {
                     name="location"
                     value={form.location}
                     onChange={handleInputChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                   />
                 </label>
               </div>
@@ -1152,7 +1157,7 @@ const Warehouse = () => {
                     name="status"
                     value={form.status}
                     onChange={handleInputChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -1188,7 +1193,8 @@ const Warehouse = () => {
                 background: "#fff",
                 padding: "2rem",
                 borderRadius: "8px",
-                minWidth: "420px",
+                width: "90%",
+                maxWidth: "480px",
                 boxShadow: "0 2px 16px rgba(0,0,0,0.18)",
                 position: "relative",
               }}
@@ -1204,7 +1210,7 @@ const Warehouse = () => {
                         name="productId"
                         value={stockForm.productId}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                       >
                         <option value="">Select product</option>
                         {products.map((p: Product) => (
@@ -1224,7 +1230,7 @@ const Warehouse = () => {
                         name="code"
                         value={stockForm.code}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                         placeholder="Enter unique batch code"
                         autoComplete="off"
                       />
@@ -1239,7 +1245,7 @@ const Warehouse = () => {
                         min={1}
                         value={stockForm.quantity}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                       />
                     </label>
                   </div>
@@ -1251,7 +1257,7 @@ const Warehouse = () => {
                         name="expiryDate"
                         value={stockForm.expiryDate}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                       />
                     </label>
                   </div>
@@ -1262,7 +1268,7 @@ const Warehouse = () => {
                         name="reason"
                         value={stockForm.reason}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                       >
                         <option value="">Select Reason</option>
                         <option value="New Supply">New Supply</option>
@@ -1282,7 +1288,7 @@ const Warehouse = () => {
                         name="productId"
                         value={stockForm.productId}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                       >
                         <option value="">Select product</option>
                         {products.map((p: Product) => {
@@ -1314,7 +1320,7 @@ const Warehouse = () => {
                           name="code"
                           value={stockForm.code}
                           onChange={handleStockFormChange}
-                          style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                          style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                         >
                           <option value="">Select batch</option>
                           {(warehouseStock[stockModal.warehouseId] || [])
@@ -1343,7 +1349,7 @@ const Warehouse = () => {
                         min={1}
                         value={stockForm.quantity}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                         disabled={!stockForm.code}
                       />
                     </label>
@@ -1360,7 +1366,7 @@ const Warehouse = () => {
                         name="reason"
                         value={stockForm.reason}
                         onChange={handleStockFormChange}
-                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                        style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                       >
                         <option value="">Select Reason</option>
                         <option value="Spoil">Spoil</option>
@@ -1400,7 +1406,8 @@ const Warehouse = () => {
                 background: "#fff",
                 padding: "2rem",
                 borderRadius: "8px",
-                minWidth: "420px",
+                width: "90%",
+                maxWidth: "480px",
                 boxShadow: "0 2px 16px rgba(0,0,0,0.18)",
                 position: "relative",
               }}
@@ -1412,7 +1419,7 @@ const Warehouse = () => {
                   <input
                     value={warehouses.find(w => w.id === transferModal.fromWarehouseId)?.name || ""}
                     disabled
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", background: "#f2f2f2" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", background: "#f2f2f2", boxSizing: "border-box" }}
                   />
                 </label>
               </div>
@@ -1423,7 +1430,7 @@ const Warehouse = () => {
                     name="toWarehouseId"
                     value={transferForm.toWarehouseId ?? ""}
                     onChange={handleTransferFormChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                   >
                     <option value="">Select Warehouse</option>
                     {warehouses.filter((w: WarehouseType) => w.id !== transferModal.fromWarehouseId).map((w: WarehouseType) => (
@@ -1439,7 +1446,7 @@ const Warehouse = () => {
                     name="productId"
                     value={transferForm.productId}
                     onChange={handleTransferFormChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                   >
                     <option value="">Select product</option>
                     {products.map((p: Product) => {
@@ -1468,7 +1475,7 @@ const Warehouse = () => {
                       name="batchCode"
                       value={transferSelectedBatch}
                       onChange={handleTransferFormChange}
-                      style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                      style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                     >
                       <option value="">Select batch</option>
                       {transferBatchList
@@ -1491,7 +1498,7 @@ const Warehouse = () => {
                     min={1}
                     value={transferForm.quantity}
                     onChange={handleTransferFormChange}
-                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
+                    style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", boxSizing: "border-box" }}
                     disabled={!transferSelectedBatch}
                   />
                 </label>

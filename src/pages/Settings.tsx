@@ -228,7 +228,7 @@ const Settings: React.FC = () => {
                 <button className="btn primary-btn" onClick={handleAddStaff}>Add Staff</button>
               )}
             </div>
-            <div className="table-responsive">
+            <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {staff.length === 0 ? (
                 <div style={{ padding: '1rem', textAlign: 'center' }}>No staff available.</div>
               ) : (
@@ -269,7 +269,7 @@ const Settings: React.FC = () => {
 
           <section className="settings-section">
             <h2>Low Stock Alert Settings</h2>
-            <div className="table-responsive">
+            <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {products.length === 0 ? (
                 <div style={{ padding: '1rem', textAlign: 'center' }}>No products available.</div>
               ) : (

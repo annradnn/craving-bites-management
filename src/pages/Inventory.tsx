@@ -291,23 +291,7 @@ export default function Inventory() {
           </div>
         </div>
 
-        <div className="quick-nav-container" style={{ marginBottom: "1rem" }}>
-          {["Stock List", /*"Low Stock Alerts",*/ "Expiring Soon", "Batch Management"].map((section) => (
-            <button
-              key={section}
-              onClick={() => {
-                if(section === "Stock List") {
-                  setSelectedMonth(new Date().getMonth());
-                  setSelectedYear(new Date().getFullYear());
-                }
-                const el = document.getElementById(section.replace(/\s+/g, '-').toLowerCase());
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-            >
-              {section}
-            </button>
-          ))}
-        </div>
+        {/* quick-nav-container removed as per instructions */}
 
         <div className="inventory-section" id="stock-list">
           <h2>📦 Stock List</h2>
