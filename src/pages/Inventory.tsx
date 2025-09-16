@@ -44,7 +44,7 @@ export default function Inventory() {
   };
 
   // Fetch inventory from all warehouse transactions subcollections
-  const fetchInventory = async () => {
+  const fetchInventory = React.useCallback(async () => {
     try {
       const db = getFirestore();
       const warehousesSnapshot = await getDocs(collection(db, "warehouses"));
@@ -128,7 +128,7 @@ export default function Inventory() {
     } catch (error) {
       console.error("Error fetching inventory data:", error);
     }
-  };
+  }, []);
 
   // Filter the current inventory items by selected month and year,
   // showing the filtered results in searchResults without overwriting items.
@@ -154,7 +154,7 @@ export default function Inventory() {
 
   React.useEffect(() => {
     fetchInventory();
-  }, []);
+  }, [fetchInventory]);
 
   // Filter items by search term (dynamically on all string values)
   const filterItemsBySearch = (allItems: InventoryItem[], term: string) => {
