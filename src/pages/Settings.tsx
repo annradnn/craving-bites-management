@@ -18,7 +18,10 @@ const Settings: React.FC = () => {
   });
 
   const [products, setProducts] = useState<{ id: string; name: string; lowStockThreshold: number }[]>([]);
-  const [lowStockSettings, setLowStockSettings] = useState<{ [productId: string]: number }>({});
+  // Collapsible state for staff table
+  const [showStaffTable, setShowStaffTable] = useState(true);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
+  const [warehouseLowStockSettings, setWarehouseLowStockSettings] = useState<{ [productId: string]: number }>({});
 
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
 
@@ -68,7 +71,7 @@ const Settings: React.FC = () => {
       // Initialize low stock settings if not already
       const initialSettings: { [productId: string]: number } = {};
       productsData.forEach(p => { initialSettings[p.id] = p.lowStockThreshold || 0; });
-      setLowStockSettings(initialSettings);
+      setWarehouseLowStockSettings(initialSettings);
     });
 
     return () => unsubscribe();
@@ -222,57 +225,129 @@ const Settings: React.FC = () => {
           <h1>Settings</h1>
 
           <section className="settings-section">
-            <h2>Staff Management</h2>
-            <div className="table-controls">
-              {userRole === "admin" && (
-                <button className="btn primary-btn" onClick={handleAddStaff}>Add Staff</button>
-              )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h2 style={{ margin: 0 }}>Staff Management</h2>
+              <button
+                className="btn secondary-btn"
+                onClick={() => setShowStaffTable((prev) => !prev)}
+                style={{ marginLeft: "1rem", minWidth: "120px" }}
+                aria-expanded={showStaffTable}
+                aria-controls="staff-table-section"
+              >
+                {showStaffTable ? "Hide Table" : "Show Table"}
+              </button>
             </div>
-            <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {staff.length === 0 ? (
-                <div style={{ padding: '1rem', textAlign: 'center' }}>No staff available.</div>
-              ) : (
-                <table className="inventory-table staff-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Role</th>
-                      <th>Assigned Warehouse</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {staff.map(member => (
-                      <tr key={member.id}>
-                        <td>{member.id}</td>
-                        <td>{member.name}</td>
-                        <td>{member.email}</td>
-                        <td>{member.role}</td>
-                        <td>{warehouses.find(w => w.id === member.assignedWarehouse)?.name || member.assignedWarehouse}</td>
-                        <td>
-                          {userRole === "admin" && (
-                            <>
-                              <button className="btn primary-btn" onClick={() => handleEditStaff(member)}>Edit</button>
-                              <button className="btn secondary-btn" onClick={() => handleDeleteStaff(member.id)}>Delete</button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+            {showStaffTable && (
+              <>
+                <div className="table-controls">
+                  {userRole === "admin" && (
+                    <button className="btn primary-btn" onClick={handleAddStaff}>Add Staff</button>
+                  )}
+                </div>
+                <div
+                  className="table-responsive"
+                  style={{ maxHeight: '400px', overflowY: 'auto' }}
+                  id="staff-table-section"
+                >
+                  {staff.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center' }}>No staff available.</div>
+                  ) : (
+                    <table className="inventory-table staff-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Role</th>
+                      {/* <th>Assigned Warehouse</th> */}
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {staff.map(member => (
+                          <tr key={member.id}>
+                            <td>{member.id}</td>
+                            <td>{member.name}</td>
+                            <td>{member.email}</td>
+                            <td>{member.role}</td>
+                            {/* <td>{warehouses.find(w => w.id === member.assignedWarehouse)?.name || member.assignedWarehouse}</td> */}
+                            <td>
+                              {userRole === "admin" && (
+                                <>
+                                  <button className="btn primary-btn" onClick={() => handleEditStaff(member)}>Edit</button>
+                                  <button className="btn secondary-btn" onClick={() => handleDeleteStaff(member.id)}>Delete</button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </>
+            )}
           </section>
 
           <section className="settings-section">
             <h2>Low Stock Alert Settings</h2>
-            <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {products.length === 0 ? (
-                <div style={{ padding: '1rem', textAlign: 'center' }}>No products available.</div>
-              ) : (
+
+            {/* Warehouse Selector */}
+            <div className="table-controls">
+              <label style={{ marginRight: '10px' }}>Select Warehouse:</label>
+              <select
+                value={selectedWarehouse}
+                onChange={async (e) => {
+                  const wid = e.target.value;
+                  setSelectedWarehouse(wid);
+
+                  if (!wid) {
+                    setWarehouseLowStockSettings({});
+                    return;
+                  }
+
+                  // Fetch warehouse-specific low stock settings
+                  const lowStockCollection = collection(db, "warehouses", wid, "lowStockSettings");
+                  const snapshot = await getDocs(lowStockCollection);
+                  const settings: { [productId: string]: number } = {};
+                  snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    settings[docSnap.id] = data.threshold || 0;
+                  });
+
+                  // Fetch the warehouse's stock collection to get only products available in this warehouse
+                  const stockCollection = collection(db, "warehouses", wid, "stock");
+                  const stockSnapshot = await getDocs(stockCollection);
+                  const productMap: { [productName: string]: { id: string; name: string; lowStockThreshold: number } } = {};
+                  stockSnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (data.product) {
+                      const productName = data.product;
+                      if (!productMap[productName]) {
+                        productMap[productName] = {
+                          id: productName,
+                          name: productName,
+                          lowStockThreshold: settings[productName] || 0
+                        };
+                      }
+                    }
+                  });
+                  const warehouseProducts = Object.values(productMap);
+                  setProducts(warehouseProducts);
+                  setWarehouseLowStockSettings(settings);
+                }}
+              >
+                <option value="">Select Warehouse</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedWarehouse ? (
+              <div className="table-responsive" style={{ maxHeight: "400px", overflowY: "auto" }}>
                 <table className="inventory-table staff-table">
                   <thead>
                     <tr>
@@ -282,40 +357,48 @@ const Settings: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map(product => (
+                    {products.map((product) => (
                       <tr key={product.id}>
                         <td>{product.name}</td>
-                        <td>{lowStockSettings[product.id]}</td>
+                        <td>{warehouseLowStockSettings[product.id]}</td>
                         <td>
                           {userRole === "admin" ? (
                             <input
                               type="number"
-                              value={lowStockSettings[product.id]}
-                              onChange={e => setLowStockSettings(prev => ({ ...prev, [product.id]: parseInt(e.target.value) }))}
+                              value={warehouseLowStockSettings[product.id] || 0}
+                              onChange={(e) =>
+                                setWarehouseLowStockSettings((prev) => ({
+                                  ...prev,
+                                  [product.id]: parseInt(e.target.value),
+                                }))
+                              }
                             />
                           ) : (
-                            lowStockSettings[product.id]
+                            warehouseLowStockSettings[product.id]
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              )}
-            </div>
-            {userRole === "admin" && (
+              </div>
+            ) : (
+              <p style={{ textAlign: "center", marginTop: "1rem" }}>Please select a warehouse.</p>
+            )}
+
+            {userRole === "admin" && selectedWarehouse && (
               <button
                 className="btn primary-btn"
                 onClick={async () => {
-                  // save updated thresholds to Firestore
                   try {
-                    for (const product of products) {
-                      const productRef = doc(db, "products", product.name); // use name as doc ID
-                      await setDoc(productRef, { lowStockThreshold: lowStockSettings[product.id] }, { merge: true });
-                    }
-                    alert("Low stock thresholds updated successfully.");
+                    const promises = Object.entries(warehouseLowStockSettings).map(([productId, threshold]) => {
+                      const ref = doc(db, "warehouses", selectedWarehouse, "lowStockSettings", productId);
+                      return setDoc(ref, { threshold }, { merge: true });
+                    });
+                    await Promise.all(promises);
+                    alert("Low stock thresholds updated successfully for this warehouse.");
                   } catch (error) {
-                    console.error("Error updating thresholds:", error);
+                    console.error("Error updating warehouse thresholds:", error);
                   }
                 }}
               >
@@ -350,18 +433,7 @@ const Settings: React.FC = () => {
                       <option value="admin">Admin</option>
                     </select>
                   </label>
-                  {/* Only show Assigned Warehouse dropdown if role is "staff" */}
-                  {formInputs.role === "staff" && (
-                    <label>
-                      Assigned Warehouse:
-                      <select name="assignedWarehouse" value={formInputs.assignedWarehouse} onChange={handleInputChange} required>
-                        <option value="">Select Warehouse</option>
-                        {warehouses.map(warehouse => (
-                          <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
+                  {/* Assigned Warehouse field removed from edit modal */}
                   <div className="modal-buttons">
                     <button type="submit" className="btn primary-btn">Save</button>
                     <button type="button" className="btn secondary-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
