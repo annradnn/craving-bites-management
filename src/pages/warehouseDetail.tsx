@@ -858,11 +858,11 @@ const WarehouseDetail: React.FC = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label>Quantity (Available: {stockOutAvailableQty})</label>
+                <label>Quantity</label>
                 <input
                   type="number"
                   min={1}
-                  max={stockOutAvailableQty}
+                  max={undefined}
                   placeholder="Enter quantity"
                   value={stockOutQuantity}
                   onChange={e => setStockOutQuantity(Number(e.target.value))}
