@@ -52,7 +52,6 @@ const WarehouseDetail: React.FC = () => {
   const [stockOutProduct, setStockOutProduct] = useState<string>('');
   const [stockOutCode, setStockOutCode] = useState<string>('');
   const [stockOutQuantity, setStockOutQuantity] = useState<number>(0);
-  const [stockOutAvailableQty, setStockOutAvailableQty] = useState<number>(0);
 
   // State for Transfer modal selections
   const [transferToWarehouse, setTransferToWarehouse] = useState<string>('');
@@ -221,7 +220,6 @@ const WarehouseDetail: React.FC = () => {
     setStockOutProduct('');
     setStockOutCode('');
     setStockOutQuantity(0);
-    setStockOutAvailableQty(0);
     setStockOutReason('');
     await reloadWarehouseStockAndUpdateTotal();
   };
@@ -396,7 +394,7 @@ const WarehouseDetail: React.FC = () => {
           id: docSnap.id,
           product: data.product,
           category: data.category,
-          quantity: data.quantity || 0,
+          quantity: typeof data.quantity === 'number' ? data.quantity : Number(data.quantity) || 0,
           code: data.code || '',
           expiryDate: data.expiryDate || '',
         });
@@ -421,19 +419,17 @@ const WarehouseDetail: React.FC = () => {
   // Handle Stock Out product change: update batch list and available quantity
   useEffect(() => {
     if (stockOutProduct) {
-      const batches = warehouseStock.filter(s => s.product === stockOutProduct);
+      const batches = warehouseStock.filter(s => s.product === stockOutProduct && s.quantity > 0);
       if (batches.length > 0) {
-        setStockOutCode(batches[0].code);
-        setStockOutAvailableQty(batches[0].quantity);
-        setStockOutQuantity(0);
+        setStockOutCode(batches[0].id); // Use Firestore doc id
+        // Set quantity to 1 or batch quantity, whichever is smaller
+        setStockOutQuantity(Math.min(1, batches[0].quantity));
       } else {
         setStockOutCode('');
-        setStockOutAvailableQty(0);
         setStockOutQuantity(0);
       }
     } else {
       setStockOutCode('');
-      setStockOutAvailableQty(0);
       setStockOutQuantity(0);
     }
   }, [stockOutProduct, warehouseStock]);
@@ -441,16 +437,14 @@ const WarehouseDetail: React.FC = () => {
   // Handle Stock Out code change: update available quantity
   useEffect(() => {
     if (stockOutCode) {
-      const batchItem = warehouseStock.find(s => s.product === stockOutProduct && s.code === stockOutCode);
-      if (batchItem) {
-        setStockOutAvailableQty(batchItem.quantity);
-        setStockOutQuantity(0);
+      const batchItem = warehouseStock.find(s => s.id === stockOutCode);
+      if (batchItem && batchItem.quantity > 0) {
+        setStockOutQuantity(Math.min(1, batchItem.quantity)); // default to 1 or max available
       } else {
-        setStockOutAvailableQty(0);
         setStockOutQuantity(0);
       }
     }
-  }, [stockOutCode, stockOutProduct, warehouseStock]);
+  }, [stockOutCode, warehouseStock]);
 
   // Handle Transfer product change: update batch list and available quantity
   useEffect(() => {
@@ -820,10 +814,6 @@ const WarehouseDetail: React.FC = () => {
             <h2>Stock Out</h2>
             <form onSubmit={e => {
               e.preventDefault();
-              if (stockOutQuantity > stockOutAvailableQty) {
-                alert(`Quantity exceeds available stock (${stockOutAvailableQty}).`);
-                return;
-              }
               handleStockOut();
             }}>
               <div className="form-group">
@@ -851,7 +841,7 @@ const WarehouseDetail: React.FC = () => {
                   {warehouseStock
                     .filter(s => s.product === stockOutProduct && s.quantity > 0)
                     .map(batch => (
-                      <option key={batch.id} value={batch.code}>
+                      <option key={batch.id} value={batch.id}>
                         {batch.code} (Qty: {batch.quantity}{batch.expiryDate ? `, Exp: ${batch.expiryDate}` : ''})
                       </option>
                     ))}
@@ -862,10 +852,21 @@ const WarehouseDetail: React.FC = () => {
                 <input
                   type="number"
                   min={1}
-                  max={undefined}
+                  max={(() => {
+                    const batchItem = warehouseStock.find(s => s.id === stockOutCode);
+                    return batchItem ? batchItem.quantity : undefined;
+                  })()}
                   placeholder="Enter quantity"
                   value={stockOutQuantity}
-                  onChange={e => setStockOutQuantity(Number(e.target.value))}
+                  onChange={e => {
+                    const batchItem = warehouseStock.find(s => s.id === stockOutCode);
+                    let val = Number(e.target.value);
+                    if (batchItem) {
+                      if (val > batchItem.quantity) val = batchItem.quantity;
+                      if (val < 1) val = 1;
+                    }
+                    setStockOutQuantity(val);
+                  }}
                   required
                   disabled={!stockOutCode}
                 />
@@ -914,7 +915,6 @@ const WarehouseDetail: React.FC = () => {
                     setStockOutProduct('');
                     setStockOutCode('');
                     setStockOutQuantity(0);
-                    setStockOutAvailableQty(0);
                     setStockOutReason('');
                   }}
                   style={{ marginLeft: '0.5rem' }}
